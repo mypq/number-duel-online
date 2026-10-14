@@ -34,6 +34,19 @@ jobs:
         run: |
           unzip -q the-last-road-pass9-gameplay.zip -d extracted
 
+      - name: Generate Debug Keystore
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore extracted/lastroad_dev/debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
       - name: Build Debug APK
         run: |
           gradle -p extracted/lastroad_dev assembleDebug
