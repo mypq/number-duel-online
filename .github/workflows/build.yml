@@ -1,59 +1,60 @@
 
-name: Build The Last Road APk
+name: Build The Last Road APK
 
 on:
-  workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/build.yml"
-      - "the-last-road-pass9-gameplay.zip"
+workflow_dispatch:
+push:
+paths:
+- ".github/workflows/build.yml"
+- "the-last-road-pass9-gameplay.zip"
 
 permissions:
-  contents: read
+contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+build:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+steps:
+- name: Checkout repository
+uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
+- name: Set up Java
+uses: actions/setup-java@v4
+with:
+distribution: temurin
+java-version: "17"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "9.3.1"
+- name: Set up Gradle
+uses: gradle/actions/setup-gradle@v4
+with:
+gradle-version: "9.3.1"
 
-      - name: Extract Pass 9
-        run: |
-          unzip -q the-last-road-pass9-gameplay.zip -d extracted
+- name: Extract Pass 9
+run: |
+unzip -q the-last-road-pass9-gameplay.zip -d extracted
 
-      - name: Generate Debug Keystore
-        run: |
-          keytool -genkeypair \
-            -v \
-            -keystore extracted/lastroad_dev/debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+- name: Generate Debug Keystore
+run: |
+keytool -genkeypair 
+ -v 
+ -keystore extracted/lastroad_dev/debug.keystore 
+ -storepass android 
+ -alias androiddebugkey 
+ -keypass android 
+ -keyalg RSA 
+ -keysize 2048 
+ -validity 10000 
+ -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Build Debug APK
-        run: |
-          gradle -p extracted/lastroad_dev assembleDebug
+- name: Build Debug APK
+run: |
+gradle -p extracted/lastroad_dev assembleDebug
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: The-Last-Road-Pass9-APK
-          path: extracted/lastroad_dev/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+- name: Upload APK
+uses: actions/upload-artifact@v4
+with:
+name: The-Last-Road-Pass9-APK
+path: extracted/lastroad_dev/app/build/outputs/apk/debug/*.apk
+if-no-files-found: error
+
