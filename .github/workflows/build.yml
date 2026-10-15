@@ -1,5 +1,4 @@
-
-name: Build The Last Road APK
+name: Build The Last Road APk
 
 on:
 workflow_dispatch:
@@ -57,4 +56,3 @@ with:
 name: The-Last-Road-Pass9-APK
 path: extracted/lastroad_dev/app/build/outputs/apk/debug/*.apk
 if-no-files-found: error
-
