@@ -1,5 +1,5 @@
 
-name: Build The Last Road APK
+name: Build The Last Road APk
 
 on:
   workflow_dispatch:
