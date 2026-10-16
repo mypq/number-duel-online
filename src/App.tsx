@@ -69,15 +69,15 @@ export default function App() {
     }
   }, []);
 
-  // Initialize WebSocket connection to authoritative server
+  // Initialize WebSocket connection to authoritative Abasthan server directly
   const connectWebSocket = useCallback(() => {
     if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      // Direct connection to remote Abasthan game server root
+      const wsUrl = 'wss://yogurt-paltry-tiger.abasthan.app';
       const socket = new WebSocket(wsUrl);
 
       socket.onopen = () => {
