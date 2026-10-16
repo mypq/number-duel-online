@@ -1,0 +1,16 @@
+{
+  "short_name": "NumberDuel",
+  "name": "Number Duel Online",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/5325/5325952.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#060913",
+  "theme_color": "#060913",
+  "display": "standalone",
+  "orientation": "portrait"
+}
