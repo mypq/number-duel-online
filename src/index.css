@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-family: 'Cairo', 'Tajawal', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #060913;
+    color: #f1f5f9;
+    direction: rtl;
+    text-align: right;
+  }
+}
+
+.font-heading {
+  font-family: 'Tajawal', 'Cairo', sans-serif;
+}
+
+.font-mono-num {
+  font-family: 'JetBrains Mono', 'Cairo', monospace;
+}
+
+/* Custom smooth dark scrollbar for mobile 100-number grid */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.3);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.6);
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 229, 255, 0.8);
+  }
+}
+
+@keyframes pulseGlowMagenta {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(255, 0, 122, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255, 0, 122, 0.8);
+  }
+}
+
+.glow-cyan {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+.glow-magenta {
+  animation: pulseGlowMagenta 2s infinite ease-in-out;
+}
