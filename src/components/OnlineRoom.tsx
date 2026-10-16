@@ -53,12 +53,16 @@ export const OnlineRoom: React.FC<OnlineRoomProps> = ({
     return () => clearInterval(interval);
   }, [roomState?.phase, roomState?.raceDeadline]);
 
-  // Reset input when race starts
+  // Reset selected number and input answer when round changes or resets
   useEffect(() => {
-    if (roomState?.phase === 'race') {
+    if (roomState?.phase === 'selecting') {
+      if (!me?.locked) {
+        setSelectedNum(null);
+      }
+    } else if (roomState?.phase === 'race') {
       setInputAnswer('');
     }
-  }, [roomState?.phase]);
+  }, [roomState?.phase, roomState?.currentRound, me?.locked]);
 
   // Copy invitation link
   const handleCopyLink = () => {
@@ -76,9 +80,10 @@ export const OnlineRoom: React.FC<OnlineRoomProps> = ({
 
   // Lock selected number
   const handleLockNumber = () => {
-    if (!selectedNum || me?.locked) return;
+    const targetNum = selectedNum || me?.selectedNumber;
+    if (!targetNum || me?.locked) return;
     sound.playLock();
-    onSendAction('LOCK_NUMBER', { number: selectedNum });
+    onSendAction('LOCK_NUMBER', { number: targetNum });
   };
 
   // Submit sum answer
@@ -225,7 +230,7 @@ export const OnlineRoom: React.FC<OnlineRoomProps> = ({
               <NumberGrid
                 playerRole={me.role}
                 playerName={me.name}
-                selectedNumber={selectedNum}
+                selectedNumber={selectedNum || me.selectedNumber}
                 isLocked={me.locked}
                 onSelectNumber={(num) => setSelectedNum(num)}
                 onLockNumber={handleLockNumber}
