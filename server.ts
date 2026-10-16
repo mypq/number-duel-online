@@ -228,6 +228,9 @@ async function startServer() {
           currentRoomId = code;
           currentPlayerId = playerId;
 
+          // ضمان ربط الـ WebSocket الحالي بدقة لصانع الغرفة
+          newRoom.players[playerId].ws = ws;
+
           ws.send(JSON.stringify({
             type: 'ROOM_CREATED',
             payload: { roomId: code, role: 'ali' },
