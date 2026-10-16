@@ -33,10 +33,11 @@ export const OnlineRoom: React.FC<OnlineRoomProps> = ({
   const playersList = roomState ? Object.values(roomState.players) : [];
   const opponent = roomState ? playersList.find(p => p.id !== myPlayerId) : null;
 
-  const playerOne = roomState ? playersList.find(p => p.role === 'ali') : null;
-  const playerTwo = roomState ? playersList.find(p => p.role === 'walaa') : null;
+  // المرونة في التعرف على اللاعب الأول واللاعب الثاني بصرف النظر عن الـ role
+  const playerOne = roomState && playersList.length > 0 ? playersList[0] : null;
+  const playerTwo = roomState && playersList.length > 1 ? playersList[1] : null;
 
-  // Track race countdown locally synced with server deadline
+  // Sync race countdown timer locally
   useEffect(() => {
     if (!roomState || roomState.phase !== 'race' || !roomState.raceDeadline) return;
 
@@ -53,7 +54,7 @@ export const OnlineRoom: React.FC<OnlineRoomProps> = ({
     return () => clearInterval(interval);
   }, [roomState?.phase, roomState?.raceDeadline]);
 
-  // Reset selected number and input answer when round changes or resets
+  // Reset local state when starting a round or phase change
   useEffect(() => {
     if (roomState?.phase === 'selecting') {
       if (!me?.locked) {
@@ -211,7 +212,7 @@ export const OnlineRoom: React.FC<OnlineRoomProps> = ({
               {/* Opponent Lock Status Banner */}
               <div className="max-w-xl mx-auto w-full mb-3 px-2 flex items-center justify-between bg-slate-900/90 p-3 rounded-2xl border border-slate-800 text-xs">
                 <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${me.role === 'ali' ? 'bg-cyan-400' : 'bg-pink-500'}`} />
+                  <span className={`w-2.5 h-2.5 rounded-full ${me.role === 'ali' || me.role === 'player1' ? 'bg-cyan-400' : 'bg-pink-500'}`} />
                   <span className="font-bold text-slate-300">أنت ({me.name}):</span>
                   <span className={`font-semibold ${me.locked ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
                     {me.locked ? 'تم التأكيد ✓' : (selectedNum ? `رقم ${toArabicDigits(selectedNum)}` : 'جاري الاختيار...')}
@@ -219,7 +220,7 @@ export const OnlineRoom: React.FC<OnlineRoomProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${opponent?.role === 'ali' ? 'bg-cyan-400' : 'bg-pink-500'}`} />
+                  <span className={`w-2.5 h-2.5 rounded-full ${opponent?.role === 'ali' || opponent?.role === 'player1' ? 'bg-cyan-400' : 'bg-pink-500'}`} />
                   <span className="font-bold text-slate-300">{opponent?.name}:</span>
                   <span className={`font-semibold ${opponent?.locked ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
                     {opponent?.locked ? 'تم التأكيد ✓' : 'بانتظار تأكيد الرقم...'}
@@ -308,7 +309,7 @@ export const OnlineRoom: React.FC<OnlineRoomProps> = ({
                 onSubmit={handleSubmitAnswer}
                 disabled={me.hasAnswered}
                 submitLabel={me.hasAnswered ? 'تم إرسال الإجابة' : 'إرسال الإجابة'}
-                isPrimaryTurn={me.role === 'ali'}
+                isPrimaryTurn={me.role === 'ali' || me.role === 'player1'}
               />
             </div>
           )}
@@ -322,8 +323,8 @@ export const OnlineRoom: React.FC<OnlineRoomProps> = ({
               playerTwoNumber={roomState.revealedNumbers?.walaa ?? 0}
               targetSum={roomState.targetSum ?? 0}
               winner={roomState.roundWinner ?? 'draw'}
-              playerOneScoreGained={roomState.roundWinner === 'ali' ? 3 : 0}
-              playerTwoScoreGained={roomState.roundWinner === 'walaa' ? 3 : 0}
+              playerOneScoreGained={roomState.roundWinner === 'ali' || roomState.roundWinner === 'player1' ? 3 : 0}
+              playerTwoScoreGained={roomState.roundWinner === 'walaa' || roomState.roundWinner === 'player2' ? 3 : 0}
               playerOneTotalScore={playerOne?.score ?? 0}
               playerTwoTotalScore={playerTwo?.score ?? 0}
               playerOneName={playerOne?.name || 'اللاعب ١'}
