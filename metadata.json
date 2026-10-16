@@ -1,0 +1,6 @@
+{
+  "name": "Ali & Walaa: Number Duel",
+  "description": "A fast-paced 2D competitive number duel game featuring mobile-first local practice simulation and server-authoritative real-time online multiplayer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
