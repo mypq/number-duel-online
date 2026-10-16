@@ -15,15 +15,38 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
 
-    - name: Clean Install Dependencies
+    - name: Set up Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Install Dependencies
       run: |
         rm -rf node_modules package-lock.json bun.lock
         npm install --legacy-peer-deps
+        npm install @capacitor/core @capacitor/cli @capacitor/android --save-dev
 
-    - name: Build Web App
+    - name: Build Web Project
       run: npm run build
 
-    - name: Verification
-      run: ls -la dist
+    - name: Initialize & Sync Capacitor
+      run: |
+        npx cap init "Number Duel" "com.numberduel.online" --web-dir dist || true
+        npx cap add android || true
+        npx cap copy android
+        npx cap sync android
+
+    - name: Build Android APK via Gradle
+      run: |
+        cd android
+        chmod +x gradlew
+        ./gradlew assembleDebug
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Number-Duel-Online-APK
+        path: android/app/build/outputs/apk/debug/app-debug.apk
