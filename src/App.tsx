@@ -94,8 +94,8 @@ export default function App() {
           } else if (type === 'ROOM_STATE') {
             setOnlineRoomState(payload);
             
-            // حل المشكلة: إذا كان صانع الغرفة في اللوبي وانضم اللاعب الثاني (صار عدد اللاعبين 2)، يتم نقله تلقائياً لغرفة اللعب
-            if (payload && payload.players && Object.keys(payload.players).length === 2 && mode === 'online_lobby') {
+            // نقل اللاعب تلقائياً لغرفة اللعب بمجرد اكتمال لاعبين اثنين في الغرفة
+            if (payload && payload.players && Object.keys(payload.players).length === 2 && (mode === 'online_lobby' || mode === 'menu')) {
               setMode('online_room');
             }
           } else if (type === 'ERROR') {
@@ -178,8 +178,8 @@ export default function App() {
   const getHeaderScores = () => {
     if (mode === 'online_room' && onlineRoomState) {
       const players = Object.values(onlineRoomState.players);
-      const p1 = players.find(p => p.role === 'ali');
-      const p2 = players.find(p => p.role === 'walaa');
+      const p1 = players[0];
+      const p2 = players[1];
       return {
         one: p1?.score ?? 0,
         two: p2?.score ?? 0,
