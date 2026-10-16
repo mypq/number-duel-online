@@ -93,6 +93,11 @@ export default function App() {
             setMode('online_room');
           } else if (type === 'ROOM_STATE') {
             setOnlineRoomState(payload);
+            
+            // حل المشكلة: إذا كان صانع الغرفة في اللوبي وانضم اللاعب الثاني (صار عدد اللاعبين 2)، يتم نقله تلقائياً لغرفة اللعب
+            if (payload && payload.players && Object.keys(payload.players).length === 2 && mode === 'online_lobby') {
+              setMode('online_room');
+            }
           } else if (type === 'ERROR') {
             showToast(payload.message || 'حدث خطأ في الاتصال');
           }
