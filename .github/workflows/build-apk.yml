@@ -26,8 +26,7 @@ jobs:
     - name: Install Dependencies
       run: |
         rm -rf node_modules package-lock.json bun.lock
-        npm install --legacy-peer-deps
-        npm install @capacitor/core @capacitor/cli @capacitor/android --save-dev
+        npm install --force
 
     - name: Build Web Project
       run: npm run build
