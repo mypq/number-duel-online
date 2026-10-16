@@ -46,19 +46,24 @@ const rooms = new Map<string, ServerRoom>();
 function generateRoomCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
+
   for (let i = 0; i < 6; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
+
   return code;
 }
 
 function sanitizeClientRoomState(room: ServerRoom, forPlayerId: string) {
   const playersSanitized: Record<string, any> = {};
-  
+
   for (const [pId, p] of Object.entries(room.players)) {
-    const showChosenNumber = room.phase !== 'selecting' && room.phase !== 'waiting_opponent' 
-      ? p.selectedNumber 
-      : (pId === forPlayerId ? p.selectedNumber : null);
+    const showChosenNumber =
+      room.phase !== 'selecting' && room.phase !== 'waiting_opponent'
+        ? p.selectedNumber
+        : pId === forPlayerId
+          ? p.selectedNumber
+          : null;
 
     playersSanitized[pId] = {
       id: p.id,
@@ -70,7 +75,10 @@ function sanitizeClientRoomState(room: ServerRoom, forPlayerId: string) {
       locked: p.locked,
       selectedNumber: showChosenNumber,
       hasAnswered: p.hasAnswered,
-      answeredValue: room.phase === 'round_result' || room.phase === 'match_over' ? p.answeredValue : null,
+      answeredValue:
+        room.phase === 'round_result' || room.phase === 'match_over'
+          ? p.answeredValue
+          : null,
       isCorrect: p.isCorrect,
       reactionTimeMs: p.reactionTimeMs,
     };
@@ -97,10 +105,13 @@ function broadcastRoomState(room: ServerRoom) {
   for (const [pId, p] of Object.entries(room.players)) {
     if (p.ws.readyState === WebSocket.OPEN) {
       const sanitized = sanitizeClientRoomState(room, pId);
-      p.ws.send(JSON.stringify({
-        type: 'ROOM_STATE',
-        payload: sanitized,
-      }));
+
+      p.ws.send(
+        JSON.stringify({
+          type: 'ROOM_STATE',
+          payload: sanitized,
+        }),
+      );
     }
   }
 }
@@ -114,10 +125,6 @@ function endRoundWithDraw(room: ServerRoom, reason: string) {
   room.phase = 'round_result';
   room.roundWinner = 'draw';
   room.roundWinnerReason = reason;
-
-  const playerList = Object.values(room.players);
-  const firstP = playerList[0];
-  const secondP = playerList[1];
 
   room.history.push({
     roundNumber: room.currentRound,
@@ -145,7 +152,10 @@ async function startServer() {
     res.json({
       status: 'ok',
       activeRooms: rooms.size,
-      totalPlayers: Array.from(rooms.values()).reduce((acc, r) => acc + Object.keys(r.players).length, 0),
+      totalPlayers: Array.from(rooms.values()).reduce(
+        (acc, r) => acc + Object.keys(r.players).length,
+        0,
+      ),
       timestamp: Date.now(),
     });
   });
@@ -153,10 +163,13 @@ async function startServer() {
   app.get('/api/room/:code', (req, res) => {
     const code = req.params.code.toUpperCase();
     const room = rooms.get(code);
+
     if (!room) {
       return res.status(404).json({ error: 'Room not found' });
     }
+
     const playerCount = Object.keys(room.players).length;
+
     res.json({
       roomId: room.id,
       playerCount,
@@ -178,7 +191,9 @@ async function startServer() {
 
         if (type === 'CREATE_ROOM') {
           const { playerId, playerName, settings } = payload;
+
           let code = generateRoomCode();
+
           while (rooms.has(code)) {
             code = generateRoomCode();
           }
@@ -195,6 +210,7 @@ async function startServer() {
             settings: defaultSettings,
             currentRound: 1,
             phase: 'selecting',
+
             players: {
               [playerId]: {
                 id: playerId,
@@ -211,6 +227,7 @@ async function startServer() {
                 reactionTimeMs: null,
               },
             },
+
             revealedNumbers: null,
             targetSum: null,
             raceStartTime: null,
@@ -221,15 +238,19 @@ async function startServer() {
           };
 
           rooms.set(code, newRoom);
+
           currentRoomId = code;
           currentPlayerId = playerId;
 
           newRoom.players[playerId].ws = ws;
 
-          ws.send(JSON.stringify({
-            type: 'ROOM_CREATED',
-            payload: { roomId: code, role: 'ali' },
-          }));
+          ws.send(
+            JSON.stringify({
+              type: 'ROOM_CREATED',
+              payload: { roomId: code, role: 'ali' },
+            }),
+          );
+
           broadcastRoomState(newRoom);
           return;
         }
@@ -240,7 +261,14 @@ async function startServer() {
           const room = rooms.get(cleanCode);
 
           if (!room) {
-            ws.send(JSON.stringify({ type: 'ERROR', payload: { message: `Room ${cleanCode} not found` } }));
+            ws.send(
+              JSON.stringify({
+                type: 'ERROR',
+                payload: {
+                  message: `Room ${cleanCode} not found`,
+                },
+              }),
+            );
             return;
           }
 
@@ -248,13 +276,22 @@ async function startServer() {
             room.players[playerId].ws = ws;
             currentRoomId = cleanCode;
             currentPlayerId = playerId;
+
             broadcastRoomState(room);
             return;
           }
 
           const playerIds = Object.keys(room.players);
+
           if (playerIds.length >= 2) {
-            ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'الغرفة ممتلئة بالكامل (لاعبان)' } }));
+            ws.send(
+              JSON.stringify({
+                type: 'ERROR',
+                payload: {
+                  message: 'الغرفة ممتلئة بالكامل (لاعبان)',
+                },
+              }),
+            );
             return;
           }
 
@@ -279,46 +316,94 @@ async function startServer() {
           currentRoomId = cleanCode;
           currentPlayerId = playerId;
 
-          ws.send(JSON.stringify({
-            type: 'ROOM_JOINED',
-            payload: { roomId: cleanCode, role: newRole },
-          }));
+          ws.send(
+            JSON.stringify({
+              type: 'ROOM_JOINED',
+              payload: {
+                roomId: cleanCode,
+                role: newRole,
+              },
+            }),
+          );
 
           broadcastRoomState(room);
           return;
         }
 
         if (!currentRoomId || !currentPlayerId) return;
+
         const room = rooms.get(currentRoomId);
         if (!room) return;
+
         const player = room.players[currentPlayerId];
         if (!player) return;
 
         if (type === 'UPDATE_SETTINGS') {
-          if (room.hostId === currentPlayerId && room.currentRound === 1 && !player.locked) {
-            if (payload.totalRounds) room.settings.totalRounds = payload.totalRounds;
-            if (payload.timerSeconds) room.settings.timerSeconds = payload.timerSeconds;
+          if (
+            room.hostId === currentPlayerId &&
+            room.currentRound === 1 &&
+            !player.locked
+          ) {
+            if (payload.totalRounds) {
+              room.settings.totalRounds = payload.totalRounds;
+            }
+
+            if (payload.timerSeconds) {
+              room.settings.timerSeconds = payload.timerSeconds;
+            }
+
             broadcastRoomState(room);
           }
+
           return;
         }
 
         if (type === 'LOCK_NUMBER') {
+          // تشخيص: تسجيل وصول أمر تثبيت الرقم إلى الخادم
+          console.log('LOCK_NUMBER received:', {
+            playerId: currentPlayerId,
+            number: payload.number,
+            phase: room.phase,
+            locked: player.locked,
+          });
+
           const num = Number(payload.number);
+
           if (isNaN(num) || num < 1 || num > 100) {
-            ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'يجب أن يكون الرقم بين ١ و١٠٠' } }));
+            ws.send(
+              JSON.stringify({
+                type: 'ERROR',
+                payload: {
+                  message: 'يجب أن يكون الرقم بين ١ و١٠٠',
+                },
+              }),
+            );
             return;
           }
 
           if (player.locked) {
+            console.log('LOCK_NUMBER ignored: player already locked', {
+              playerId: currentPlayerId,
+            });
             return;
           }
 
           player.selectedNumber = num;
           player.locked = true;
 
+          console.log('LOCK_NUMBER accepted:', {
+            playerId: currentPlayerId,
+            selectedNumber: player.selectedNumber,
+            locked: player.locked,
+          });
+
           const playerList = Object.values(room.players);
-          const allLocked = playerList.length === 2 && playerList.every(p => p.locked && p.selectedNumber !== null);
+
+          const allLocked =
+            playerList.length === 2 &&
+            playerList.every(
+              (p) => p.locked && p.selectedNumber !== null,
+            );
 
           if (allLocked) {
             const firstP = playerList[0];
@@ -328,31 +413,44 @@ async function startServer() {
               ali: firstP.selectedNumber!,
               walaa: secondP.selectedNumber!,
             };
-            room.targetSum = firstP.selectedNumber! + secondP.selectedNumber!;
+
+            room.targetSum =
+              firstP.selectedNumber! + secondP.selectedNumber!;
+
             room.phase = 'reveal';
             broadcastRoomState(room);
 
             setTimeout(() => {
               const currentR = rooms.get(room.id);
+
               if (!currentR || currentR.phase !== 'reveal') return;
 
               currentR.phase = 'race';
               currentR.raceStartTime = Date.now();
-              currentR.raceDeadline = Date.now() + (currentR.settings.timerSeconds * 1000);
+              currentR.raceDeadline =
+                Date.now() + currentR.settings.timerSeconds * 1000;
 
-              if (currentR.timeoutHandle) clearTimeout(currentR.timeoutHandle);
+              if (currentR.timeoutHandle) {
+                clearTimeout(currentR.timeoutHandle);
+              }
+
               currentR.timeoutHandle = setTimeout(() => {
                 const r = rooms.get(currentR.id);
+
                 if (r && r.phase === 'race') {
-                  endRoundWithDraw(r, 'انتهى الوقت المحدد دون تقديم إجابة صحيحة');
+                  endRoundWithDraw(
+                    r,
+                    'انتهى الوقت المحدد دون تقديم إجابة صحيحة',
+                  );
                 }
-              }, (currentR.settings.timerSeconds * 1000) + 300);
+              }, currentR.settings.timerSeconds * 1000 + 300);
 
               broadcastRoomState(currentR);
             }, 3000);
           } else {
             broadcastRoomState(room);
           }
+
           return;
         }
 
@@ -364,9 +462,12 @@ async function startServer() {
           if (isNaN(answerNum)) return;
 
           const now = Date.now();
+
           player.hasAnswered = true;
           player.answeredValue = answerNum;
-          player.reactionTimeMs = room.raceStartTime ? now - room.raceStartTime : null;
+          player.reactionTimeMs = room.raceStartTime
+            ? now - room.raceStartTime
+            : null;
 
           const isCorrect = answerNum === room.targetSum;
           player.isCorrect = isCorrect;
@@ -376,12 +477,17 @@ async function startServer() {
           const secondP = playerList[1];
 
           if (isCorrect) {
-            if (room.timeoutHandle) clearTimeout(room.timeoutHandle);
-            
+            if (room.timeoutHandle) {
+              clearTimeout(room.timeoutHandle);
+            }
+
             player.score += 3;
             room.phase = 'round_result';
             room.roundWinner = player.role;
-            room.roundWinnerReason = `أجاب ${player.name} بالرقم الصحيح (${answerNum}) في ${((player.reactionTimeMs || 0) / 1000).toFixed(2)} ثانية (+٣ نقاط)`;
+
+            room.roundWinnerReason =
+              `أجاب ${player.name} بالرقم الصحيح (${answerNum}) في ` +
+              `${((player.reactionTimeMs || 0) / 1000).toFixed(2)} ثانية (+٣ نقاط)`;
 
             room.history.push({
               roundNumber: room.currentRound,
@@ -398,13 +504,21 @@ async function startServer() {
             broadcastRoomState(room);
             return;
           } else {
-            const otherPlayer = playerList.find(p => p.id !== player.id);
-            if (otherPlayer && otherPlayer.hasAnswered && !otherPlayer.isCorrect) {
+            const otherPlayer = playerList.find(
+              (p) => p.id !== player.id,
+            );
+
+            if (
+              otherPlayer &&
+              otherPlayer.hasAnswered &&
+              !otherPlayer.isCorrect
+            ) {
               endRoundWithDraw(room, 'أخطأ كلا اللاعبين في الحساب');
             } else {
               broadcastRoomState(room);
             }
           }
+
           return;
         }
 
@@ -463,7 +577,6 @@ async function startServer() {
           broadcastRoomState(room);
           return;
         }
-
       } catch (err) {
         console.error('Error handling WebSocket message:', err);
       }
@@ -472,13 +585,24 @@ async function startServer() {
     ws.on('close', () => {
       if (currentRoomId && currentPlayerId) {
         const room = rooms.get(currentRoomId);
+
         if (room) {
           broadcastRoomState(room);
-          const anyConnected = Object.values(room.players).some(p => p.ws.readyState === WebSocket.OPEN);
+
+          const anyConnected = Object.values(room.players).some(
+            (p) => p.ws.readyState === WebSocket.OPEN,
+          );
+
           if (!anyConnected) {
             setTimeout(() => {
               const r = rooms.get(currentRoomId!);
-              if (r && !Object.values(r.players).some(p => p.ws.readyState === WebSocket.OPEN)) {
+
+              if (
+                r &&
+                !Object.values(r.players).some(
+                  (p) => p.ws.readyState === WebSocket.OPEN,
+                )
+              ) {
                 rooms.delete(currentRoomId!);
               }
             }, 60000);
@@ -490,20 +614,25 @@ async function startServer() {
 
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
+
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
+
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.resolve(__dirname, 'dist')));
+
     app.get('*', (req, res) => {
       res.sendFile(path.resolve(__dirname, 'dist/index.html'));
     });
   }
 
   server.listen(port, () => {
-    console.log(`Ali & Walaa: Number Duel server running on http://0.0.0.0:${port}`);
+    console.log(
+      'Ali & Walaa: Number Duel server running on http://0.0.0.0:' + port,
+    );
   });
 }
 
