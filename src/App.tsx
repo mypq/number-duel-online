@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Header } from './components/Header';
 import { MainMenu } from './components/MainMenu';
@@ -11,6 +12,7 @@ import type { GameMode, MatchSettings, OnlineRoomState } from './types/game';
 function generatePlayerId(): string {
   const existing = sessionStorage.getItem('duel_player_id');
   if (existing) return existing;
+
   const newId = 'p_' + Math.random().toString(36).substring(2, 9);
   sessionStorage.setItem('duel_player_id', newId);
   return newId;
@@ -18,38 +20,61 @@ function generatePlayerId(): string {
 
 export default function App() {
   const [mode, setMode] = useState<GameMode>('menu');
-  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
-  const [isChangingNameModalOpen, setIsChangingNameModalOpen] = useState<boolean>(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isChangingNameModalOpen, setIsChangingNameModalOpen] = useState(false);
 
-  // Player Name Setup
-  const [playerName, setPlayerName] = useState<string>(() => {
-    return localStorage.getItem('duel_player_name') || '';
-  });
-  const [showFirstLaunchWelcome, setShowFirstLaunchWelcome] = useState<boolean>(() => {
-    return !localStorage.getItem('duel_player_name');
-  });
+  const [playerName, setPlayerName] = useState(
+    () => localStorage.getItem('duel_player_name') || ''
+  );
+
+  const [showFirstLaunchWelcome, setShowFirstLaunchWelcome] = useState(
+    () => !localStorage.getItem('duel_player_name')
+  );
 
   const [matchSettings, setMatchSettings] = useState<MatchSettings>(() => {
     const saved = localStorage.getItem('duel_match_settings');
+
     if (saved) {
-      try { return JSON.parse(saved); } catch (_) {}
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // Use default settings if saved settings are invalid.
+      }
     }
+
     return { totalRounds: 5, timerSeconds: 10 };
   });
 
-  // Online Multiplayer State
   const [myPlayerId] = useState<string>(generatePlayerId);
-  const [initialRoomCode, setInitialRoomCode] = useState<string>('');
-  const [isWsConnected, setIsWsConnected] = useState<boolean>(false);
-  const [onlineRoomState, setOnlineRoomState] = useState<OnlineRoomState | null>(null);
+  const [initialRoomCode, setInitialRoomCode] = useState('');
+  const [isWsConnected, setIsWsConnected] = useState(false);
+  const [onlineRoomState, setOnlineRoomState] =
+    useState<OnlineRoomState | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const modeRef = useRef<GameMode>(mode);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
 
-  const showToast = (msg: string) => {
+  // Keep the latest mode available to WebSocket callbacks without
+  // recreating the connection whenever the screen changes.
+  modeRef.current = mode;
+
+  const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
+
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
+    toastTimerRef.current = setTimeout(() => {
+      if (mountedRef.current) {
+        setToastMessage(null);
+      }
+    }, 3500);
+  }, []);
 
   const handleSavePlayerName = (name: string) => {
     setPlayerName(name);
@@ -58,91 +83,166 @@ export default function App() {
     setIsChangingNameModalOpen(false);
   };
 
-  // Check URL query parameters for room code invite link (?room=CODE)
+  // Read an invitation code from the URL.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
+
     if (roomParam) {
-      const clean = roomParam.trim().toUpperCase();
-      setInitialRoomCode(clean);
+      setInitialRoomCode(roomParam.trim().toUpperCase());
       setMode('online_lobby');
     }
   }, []);
 
-  // Initialize WebSocket connection to authoritative Abasthan server directly
+  // Stable WebSocket connection: changing screens must not close it.
   const connectWebSocket = useCallback(() => {
-    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+    const current = wsRef.current;
+
+    if (
+      current &&
+      (current.readyState === WebSocket.OPEN ||
+        current.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
     try {
-      // Direct connection to remote Abasthan game server root
-      const wsUrl = 'wss://yogurt-paltry-tiger.abasthan.app';
-      const socket = new WebSocket(wsUrl);
+      const socket = new WebSocket(
+        'wss://yogurt-paltry-tiger.abasthan.app'
+      );
+
+      wsRef.current = socket;
 
       socket.onopen = () => {
+        if (!mountedRef.current) return;
+
         setIsWsConnected(true);
+        console.log('WebSocket connected');
       };
 
       socket.onmessage = (event) => {
+        if (!mountedRef.current) return;
+
         try {
           const data = JSON.parse(event.data);
           const { type, payload } = data;
+
+          console.log('WebSocket message:', type, payload);
 
           if (type === 'ROOM_CREATED' || type === 'ROOM_JOINED') {
             setMode('online_room');
           } else if (type === 'ROOM_STATE') {
             setOnlineRoomState(payload);
-            
-            // نقل اللاعب تلقائياً لغرفة اللعب بمجرد اكتمال لاعبين اثنين في الغرفة
-            if (payload && payload.players && Object.keys(payload.players).length === 2 && (mode === 'online_lobby' || mode === 'menu')) {
+
+            if (
+              payload?.players &&
+              Object.keys(payload.players).length === 2 &&
+              (modeRef.current === 'online_lobby' ||
+                modeRef.current === 'menu')
+            ) {
               setMode('online_room');
             }
           } else if (type === 'ERROR') {
-            showToast(payload.message || 'حدث خطأ في الاتصال');
+            showToast(payload?.message || 'حدث خطأ في الاتصال');
           }
         } catch (err) {
-          console.error('Failed to parse WS payload', err);
+          console.error('Failed to parse WebSocket message:', err);
+          showToast('تعذرت قراءة رد الخادم');
         }
       };
 
-      socket.onclose = () => {
-        setIsWsConnected(false);
-        setTimeout(() => {
-          if (mode === 'online_room' || mode === 'online_lobby') {
-            connectWebSocket();
-          }
-        }, 3000);
+      socket.onerror = (event) => {
+        console.error('WebSocket error:', event);
+
+        if (mountedRef.current) {
+          setIsWsConnected(false);
+        }
       };
 
-      socket.onerror = () => {
-        setIsWsConnected(false);
-      };
+      socket.onclose = (event) => {
+        console.warn('WebSocket closed:', event.code, event.reason);
 
-      wsRef.current = socket;
+        if (wsRef.current === socket) {
+          wsRef.current = null;
+        }
+
+        if (!mountedRef.current) return;
+
+        setIsWsConnected(false);
+
+        const currentMode = modeRef.current;
+        const shouldReconnect =
+          currentMode === 'online_room' ||
+          currentMode === 'online_lobby';
+
+        if (shouldReconnect && !reconnectTimerRef.current) {
+          reconnectTimerRef.current = setTimeout(() => {
+            reconnectTimerRef.current = null;
+
+            if (mountedRef.current) {
+              connectWebSocket();
+            }
+          }, 2000);
+        }
+      };
     } catch (err) {
+      console.error('Could not create WebSocket:', err);
       setIsWsConnected(false);
+      showToast('تعذر الاتصال بالخادم');
     }
-  }, [mode]);
+  }, [showToast]);
 
+  // Connect once on mount. Do not reconnect the effect whenever mode changes.
   useEffect(() => {
+    mountedRef.current = true;
     connectWebSocket();
+
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
+      mountedRef.current = false;
+
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+
+      const socket = wsRef.current;
+      wsRef.current = null;
+
+      if (socket) {
+        socket.onopen = null;
+        socket.onmessage = null;
+        socket.onerror = null;
+        socket.onclose = null;
+        socket.close();
       }
     };
   }, [connectWebSocket]);
 
-  // Send action to server
-  const sendWsAction = (type: string, payload: any) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type, payload }));
-    } else {
-      showToast('جاري الاتصال بالخادم... يرجى المحاولة بعد لحظة.');
-      connectWebSocket();
-    }
-  };
+  // Send an action only when the socket is ready.
+  const sendWsAction = useCallback(
+    (type: string, payload: any) => {
+      const socket = wsRef.current;
+
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        try {
+          console.log('Sending WebSocket action:', type, payload);
+          socket.send(JSON.stringify({ type, payload }));
+        } catch (err) {
+          console.error('Failed to send WebSocket action:', err);
+          showToast('تعذر إرسال الأمر. حاول مرة أخرى.');
+        }
+      } else {
+        showToast('الاتصال بالخادم غير جاهز. انتظر قليلاً ثم حاول مجدداً.');
+        connectWebSocket();
+      }
+    },
+    [connectWebSocket, showToast]
+  );
 
   const handleCreateRoom = (name: string, settings: MatchSettings) => {
     sendWsAction('CREATE_ROOM', {
@@ -162,11 +262,16 @@ export default function App() {
 
   const handleLeaveRoom = () => {
     setOnlineRoomState(null);
+    setInitialRoomCode('');
     setMode('online_lobby');
-    if (window.history.pushState) {
-      const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-      window.history.pushState({ path: newUrl }, '', newUrl);
-    }
+
+    const cleanUrl =
+      window.location.protocol +
+      '//' +
+      window.location.host +
+      window.location.pathname;
+
+    window.history.pushState({ path: cleanUrl }, '', cleanUrl);
   };
 
   const handleUpdateSettings = (newSettings: MatchSettings) => {
@@ -174,21 +279,22 @@ export default function App() {
     localStorage.setItem('duel_match_settings', JSON.stringify(newSettings));
   };
 
-  // Derive scores for header
   const getHeaderScores = () => {
     if (mode === 'online_room' && onlineRoomState) {
       const players = Object.values(onlineRoomState.players);
       const p1 = players[0];
       const p2 = players[1];
+
       return {
         one: p1?.score ?? 0,
         two: p2?.score ?? 0,
         currentRound: onlineRoomState.currentRound,
         totalRounds: onlineRoomState.settings.totalRounds,
-        playerOneName: p1?.name || (playerName || 'أنت'),
+        playerOneName: p1?.name || playerName || 'أنت',
         playerTwoName: p2?.name || 'المنافس',
       };
     }
+
     return {
       one: 0,
       two: 0,
@@ -202,8 +308,10 @@ export default function App() {
   const headerScores = getHeaderScores();
 
   return (
-    <div className="min-h-screen bg-[#060913] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black" dir="rtl">
-      {/* Universal Header */}
+    <div
+      className="min-h-screen bg-[#060913] text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black"
+      dir="rtl"
+    >
       <Header
         mode={mode}
         currentRound={headerScores.currentRound}
@@ -224,7 +332,6 @@ export default function App() {
         isOnlineConnected={isWsConnected}
       />
 
-      {/* Main Content Area */}
       <main className="flex-1 flex flex-col">
         {mode === 'menu' && (
           <MainMenu
@@ -281,14 +388,12 @@ export default function App() {
         )}
       </main>
 
-      {/* First Launch Welcome Name Setup Modal */}
       <WelcomeNameModal
         isOpen={showFirstLaunchWelcome}
         onSaveName={handleSavePlayerName}
         initialName={playerName}
       />
 
-      {/* Change Name Modal */}
       <WelcomeNameModal
         isOpen={isChangingNameModalOpen}
         onSaveName={handleSavePlayerName}
@@ -297,7 +402,6 @@ export default function App() {
         onClose={() => setIsChangingNameModalOpen(false)}
       />
 
-      {/* Settings Modal */}
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -307,7 +411,6 @@ export default function App() {
         onUpdatePlayerName={handleSavePlayerName}
       />
 
-      {/* Notification Toast */}
       {toastMessage && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900 border border-cyan-400 text-cyan-200 px-4 py-2.5 rounded-2xl shadow-2xl text-xs font-bold animate-in fade-in slide-in-from-bottom-3 duration-200">
           {toastMessage}
