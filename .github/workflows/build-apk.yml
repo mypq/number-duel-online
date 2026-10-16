@@ -23,10 +23,11 @@ jobs:
         distribution: 'zulu'
         java-version: '17'
 
-    - name: Install Dependencies
+    - name: Install Dependencies & Capacitor
       run: |
         rm -rf node_modules package-lock.json bun.lock
         npm install --force
+        npm install @capacitor/core @capacitor/cli @capacitor/android --save
 
     - name: Build Web Project
       run: npm run build
