@@ -3,12 +3,12 @@ export type GameMode = 'menu' | 'practice' | 'online_lobby' | 'online_room' | 's
 export type Role = 'ali' | 'walaa' | 'player1' | 'player2';
 
 export type GamePhase = 
-  | 'selecting'         // Picking a number 1..100
-  | 'waiting_opponent'  // Locked, waiting for opponent to lock
-  | 'reveal'            // 3-2-1 dramatic reveal of both numbers
-  | 'race'              // Sum arithmetic problem displayed with timer
-  | 'round_result'      // Winner of the round, points awarded
-  | 'match_over';       // Final score & match champion
+  | 'selecting'         
+  | 'waiting_opponent'  
+  | 'reveal'            
+  | 'race'              
+  | 'round_result'      
+  | 'match_over';       
 
 export interface MatchSettings {
   totalRounds: 3 | 5 | 10;
@@ -23,7 +23,7 @@ export interface PlayerInfo {
   isReady: boolean;
   connected: boolean;
   locked: boolean;
-  selectedNumber: number | null; // Kept private during selecting phase in online mode
+  selectedNumber: number | null;
   hasAnswered: boolean;
   answeredValue: number | null;
   isCorrect: boolean | null;
