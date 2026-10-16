@@ -1,9 +1,15 @@
+
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import type { MatchSettings, Role, GamePhase, RoundHistory } from './src/types/game';
+import type {
+  MatchSettings,
+  Role,
+  GamePhase,
+  RoundHistory,
+} from './src/types/game';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,12 +60,16 @@ function generateRoomCode(): string {
   return code;
 }
 
-function sanitizeClientRoomState(room: ServerRoom, forPlayerId: string) {
+function sanitizeClientRoomState(
+  room: ServerRoom,
+  forPlayerId: string,
+) {
   const playersSanitized: Record<string, any> = {};
 
   for (const [pId, p] of Object.entries(room.players)) {
     const showChosenNumber =
-      room.phase !== 'selecting' && room.phase !== 'waiting_opponent'
+      room.phase !== 'selecting' &&
+      room.phase !== 'waiting_opponent'
         ? p.selectedNumber
         : pId === forPlayerId
           ? p.selectedNumber
@@ -76,7 +86,8 @@ function sanitizeClientRoomState(room: ServerRoom, forPlayerId: string) {
       selectedNumber: showChosenNumber,
       hasAnswered: p.hasAnswered,
       answeredValue:
-        room.phase === 'round_result' || room.phase === 'match_over'
+        room.phase === 'round_result' ||
+        room.phase === 'match_over'
           ? p.answeredValue
           : null,
       isCorrect: p.isCorrect,
@@ -143,17 +154,18 @@ function endRoundWithDraw(room: ServerRoom, reason: string) {
 
 async function startServer() {
   const app = express();
-  const port = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT || 3000);
   const server = createServer(app);
 
   app.use(express.json());
 
-  app.get('/api/health', (req, res) => {
+  app.get('/api/health', (_req, res) => {
     res.json({
       status: 'ok',
       activeRooms: rooms.size,
       totalPlayers: Array.from(rooms.values()).reduce(
-        (acc, r) => acc + Object.keys(r.players).length,
+        (acc, room) =>
+          acc + Object.keys(room.players).length,
         0,
       ),
       timestamp: Date.now(),
@@ -165,7 +177,8 @@ async function startServer() {
     const room = rooms.get(code);
 
     if (!room) {
-      return res.status(404).json({ error: 'Room not found' });
+      res.status(404).json({ error: 'Room not found' });
+      return;
     }
 
     const playerCount = Object.keys(room.players).length;
@@ -173,7 +186,8 @@ async function startServer() {
     res.json({
       roomId: room.id,
       playerCount,
-      isOpen: playerCount < 2 && room.phase === 'selecting',
+      isOpen:
+        playerCount < 2 && room.phase === 'selecting',
       settings: room.settings,
     });
   });
@@ -184,9 +198,11 @@ async function startServer() {
     let currentRoomId: string | null = null;
     let currentPlayerId: string | null = null;
 
-    ws.on('message', (messageRaw: string) => {
+    console.log('WebSocket client connected');
+
+    ws.on('message', (messageRaw) => {
       try {
-        const msg = JSON.parse(messageRaw);
+        const msg = JSON.parse(messageRaw.toString());
         const { type, payload } = msg;
 
         if (type === 'CREATE_ROOM') {
@@ -210,7 +226,6 @@ async function startServer() {
             settings: defaultSettings,
             currentRound: 1,
             phase: 'selecting',
-
             players: {
               [playerId]: {
                 id: playerId,
@@ -227,7 +242,6 @@ async function startServer() {
                 reactionTimeMs: null,
               },
             },
-
             revealedNumbers: null,
             targetSum: null,
             raceStartTime: null,
@@ -238,11 +252,8 @@ async function startServer() {
           };
 
           rooms.set(code, newRoom);
-
           currentRoomId = code;
           currentPlayerId = playerId;
-
-          newRoom.players[playerId].ws = ws;
 
           ws.send(
             JSON.stringify({
@@ -252,6 +263,7 @@ async function startServer() {
           );
 
           broadcastRoomState(newRoom);
+          console.log('Room created:', code);
           return;
         }
 
@@ -276,7 +288,6 @@ async function startServer() {
             room.players[playerId].ws = ws;
             currentRoomId = cleanCode;
             currentPlayerId = playerId;
-
             broadcastRoomState(room);
             return;
           }
@@ -296,7 +307,8 @@ async function startServer() {
           }
 
           const existingRole = room.players[playerIds[0]].role;
-          const newRole: Role = existingRole === 'ali' ? 'walaa' : 'ali';
+          const newRole: Role =
+            existingRole === 'ali' ? 'walaa' : 'ali';
 
           room.players[playerId] = {
             id: playerId,
@@ -327,6 +339,7 @@ async function startServer() {
           );
 
           broadcastRoomState(room);
+          console.log('Player joined room:', cleanCode);
           return;
         }
 
@@ -359,7 +372,6 @@ async function startServer() {
         }
 
         if (type === 'LOCK_NUMBER') {
-          // تشخيص: تسجيل وصول أمر تثبيت الرقم إلى الخادم
           console.log('LOCK_NUMBER received:', {
             playerId: currentPlayerId,
             number: payload.number,
@@ -382,9 +394,10 @@ async function startServer() {
           }
 
           if (player.locked) {
-            console.log('LOCK_NUMBER ignored: player already locked', {
-              playerId: currentPlayerId,
-            });
+            console.log(
+              'LOCK_NUMBER ignored: player already locked',
+              { playerId: currentPlayerId },
+            );
             return;
           }
 
@@ -398,7 +411,6 @@ async function startServer() {
           });
 
           const playerList = Object.values(room.players);
-
           const allLocked =
             playerList.length === 2 &&
             playerList.every(
@@ -423,12 +435,15 @@ async function startServer() {
             setTimeout(() => {
               const currentR = rooms.get(room.id);
 
-              if (!currentR || currentR.phase !== 'reveal') return;
+              if (!currentR || currentR.phase !== 'reveal') {
+                return;
+              }
 
               currentR.phase = 'race';
               currentR.raceStartTime = Date.now();
               currentR.raceDeadline =
-                Date.now() + currentR.settings.timerSeconds * 1000;
+                Date.now() +
+                currentR.settings.timerSeconds * 1000;
 
               if (currentR.timeoutHandle) {
                 clearTimeout(currentR.timeoutHandle);
@@ -503,20 +518,20 @@ async function startServer() {
 
             broadcastRoomState(room);
             return;
-          } else {
-            const otherPlayer = playerList.find(
-              (p) => p.id !== player.id,
-            );
+          }
 
-            if (
-              otherPlayer &&
-              otherPlayer.hasAnswered &&
-              !otherPlayer.isCorrect
-            ) {
-              endRoundWithDraw(room, 'أخطأ كلا اللاعبين في الحساب');
-            } else {
-              broadcastRoomState(room);
-            }
+          const otherPlayer = playerList.find(
+            (p) => p.id !== player.id,
+          );
+
+          if (
+            otherPlayer &&
+            otherPlayer.hasAnswered &&
+            !otherPlayer.isCorrect
+          ) {
+            endRoundWithDraw(room, 'أخطأ كلا اللاعبين في الحساب');
+          } else {
+            broadcastRoomState(room);
           }
 
           return;
@@ -582,7 +597,13 @@ async function startServer() {
       }
     });
 
+    ws.on('error', (err) => {
+      console.error('WebSocket error:', err);
+    });
+
     ws.on('close', () => {
+      console.log('WebSocket client disconnected');
+
       if (currentRoomId && currentPlayerId) {
         const room = rooms.get(currentRoomId);
 
@@ -594,8 +615,10 @@ async function startServer() {
           );
 
           if (!anyConnected) {
+            const roomIdToDelete = currentRoomId;
+
             setTimeout(() => {
-              const r = rooms.get(currentRoomId!);
+              const r = rooms.get(roomIdToDelete);
 
               if (
                 r &&
@@ -603,7 +626,7 @@ async function startServer() {
                   (p) => p.ws.readyState === WebSocket.OPEN,
                 )
               ) {
-                rooms.delete(currentRoomId!);
+                rooms.delete(roomIdToDelete);
               }
             }, 60000);
           }
@@ -624,15 +647,17 @@ async function startServer() {
   } else {
     app.use(express.static(path.resolve(__dirname, 'dist')));
 
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.resolve(__dirname, 'dist/index.html'));
     });
   }
 
-  server.listen(port, () => {
-    console.log(
-      'Ali & Walaa: Number Duel server running on http://0.0.0.0:' + port,
-    );
+  server.on('error', (err) => {
+    console.error('HTTP SERVER ERROR:', err);
+  });
+
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`SERVER STARTED SUCCESSFULLY ON PORT ${PORT}`);
   });
 }
 
