@@ -23,10 +23,11 @@ jobs:
         distribution: 'zulu'
         java-version: '17'
 
-    - name: Install Dependencies & Capacitor
+    - name: Install Dependencies & Capacitor (Bypass strict resolve)
       run: |
         rm -rf node_modules package-lock.json bun.lock
-        npm install --force
+        npm config set legacy-peer-deps true
+        npm install --force --global-style
         npm install @capacitor/core @capacitor/cli @capacitor/android --save
 
     - name: Build Web Project
