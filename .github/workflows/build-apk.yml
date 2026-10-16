@@ -1,0 +1,31 @@
+name: Build Android APK (PWA/Capacitor)
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Build Web App
+      run: npm run build
+
+    - name: Setup PWABuilder CLI
+      run: npm install -g @pwabuilder/pwapush
+
+    - name: Generate Android Package Info
+      run: |
+        echo "Project web files built successfully in dist directory."
