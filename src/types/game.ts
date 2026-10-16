@@ -1,6 +1,6 @@
 export type GameMode = 'menu' | 'practice' | 'online_lobby' | 'online_room' | 'settings';
 
-export type Role = 'ali' | 'walaa';
+export type Role = 'ali' | 'walaa' | 'player1' | 'player2';
 
 export type GamePhase = 
   | 'selecting'         // Picking a number 1..100
