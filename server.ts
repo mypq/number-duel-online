@@ -56,7 +56,6 @@ function sanitizeClientRoomState(room: ServerRoom, forPlayerId: string) {
   const playersSanitized: Record<string, any> = {};
   
   for (const [pId, p] of Object.entries(room.players)) {
-    // SECURITY: Do not expose other player's chosen number until revealed!
     const showChosenNumber = room.phase !== 'selecting' && room.phase !== 'waiting_opponent' 
       ? p.selectedNumber 
       : (pId === forPlayerId ? p.selectedNumber : null);
@@ -116,8 +115,9 @@ function endRoundWithDraw(room: ServerRoom, reason: string) {
   room.roundWinner = 'draw';
   room.roundWinnerReason = reason;
 
-  const aliP = Object.values(room.players).find(p => p.role === 'ali');
-  const walaaP = Object.values(room.players).find(p => p.role === 'walaa');
+  const playerList = Object.values(room.players);
+  const firstP = playerList[0];
+  const secondP = playerList[1];
 
   room.history.push({
     roundNumber: room.currentRound,
@@ -141,7 +141,6 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Health and info check
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
@@ -151,7 +150,6 @@ async function startServer() {
     });
   });
 
-  // Room lookup
   app.get('/api/room/:code', (req, res) => {
     const code = req.params.code.toUpperCase();
     const room = rooms.get(code);
@@ -167,7 +165,6 @@ async function startServer() {
     });
   });
 
-  // WebSocket Server
   const wss = new WebSocketServer({ server });
 
   wss.on('connection', (ws) => {
@@ -179,7 +176,6 @@ async function startServer() {
         const msg = JSON.parse(messageRaw);
         const { type, payload } = msg;
 
-        // 1. CREATE_ROOM
         if (type === 'CREATE_ROOM') {
           const { playerId, playerName, settings } = payload;
           let code = generateRoomCode();
@@ -228,7 +224,6 @@ async function startServer() {
           currentRoomId = code;
           currentPlayerId = playerId;
 
-          // ضمان ربط الـ WebSocket الحالي بدقة لصانع الغرفة
           newRoom.players[playerId].ws = ws;
 
           ws.send(JSON.stringify({
@@ -239,7 +234,6 @@ async function startServer() {
           return;
         }
 
-        // 2. JOIN_ROOM
         if (type === 'JOIN_ROOM') {
           const { roomId, playerId, playerName } = payload;
           const cleanCode = (roomId || '').trim().toUpperCase();
@@ -250,7 +244,6 @@ async function startServer() {
             return;
           }
 
-          // Check if reconnecting
           if (room.players[playerId]) {
             room.players[playerId].ws = ws;
             currentRoomId = cleanCode;
@@ -259,7 +252,6 @@ async function startServer() {
             return;
           }
 
-          // Exactly 2 players allowed
           const playerIds = Object.keys(room.players);
           if (playerIds.length >= 2) {
             ws.send(JSON.stringify({ type: 'ERROR', payload: { message: 'الغرفة ممتلئة بالكامل (لاعبان)' } }));
@@ -302,7 +294,6 @@ async function startServer() {
         const player = room.players[currentPlayerId];
         if (!player) return;
 
-        // 3. UPDATE_SETTINGS (Host only)
         if (type === 'UPDATE_SETTINGS') {
           if (room.hostId === currentPlayerId && room.currentRound === 1 && !player.locked) {
             if (payload.totalRounds) room.settings.totalRounds = payload.totalRounds;
@@ -312,7 +303,6 @@ async function startServer() {
           return;
         }
 
-        // 4. LOCK_NUMBER (1..100)
         if (type === 'LOCK_NUMBER') {
           const num = Number(payload.number);
           if (isNaN(num) || num < 1 || num > 100) {
@@ -321,7 +311,7 @@ async function startServer() {
           }
 
           if (player.locked) {
-            return; // Prevent changes after locking
+            return;
           }
 
           player.selectedNumber = num;
@@ -331,19 +321,17 @@ async function startServer() {
           const allLocked = playerList.length === 2 && playerList.every(p => p.locked && p.selectedNumber !== null);
 
           if (allLocked) {
-            // Both locked! Trigger Reveal Phase
-            const aliP = playerList.find(p => p.role === 'ali')!;
-            const walaaP = playerList.find(p => p.role === 'walaa')!;
+            const firstP = playerList[0];
+            const secondP = playerList[1];
 
             room.revealedNumbers = {
-              ali: aliP.selectedNumber!,
-              walaa: walaaP.selectedNumber!,
+              ali: firstP.selectedNumber!,
+              walaa: secondP.selectedNumber!,
             };
-            room.targetSum = aliP.selectedNumber! + walaaP.selectedNumber!;
+            room.targetSum = firstP.selectedNumber! + secondP.selectedNumber!;
             room.phase = 'reveal';
             broadcastRoomState(room);
 
-            // After 3-second dramatic reveal countdown, start Race
             setTimeout(() => {
               const currentR = rooms.get(room.id);
               if (!currentR || currentR.phase !== 'reveal') return;
@@ -352,7 +340,6 @@ async function startServer() {
               currentR.raceStartTime = Date.now();
               currentR.raceDeadline = Date.now() + (currentR.settings.timerSeconds * 1000);
 
-              // Schedule authoritative timer expiration
               if (currentR.timeoutHandle) clearTimeout(currentR.timeoutHandle);
               currentR.timeoutHandle = setTimeout(() => {
                 const r = rooms.get(currentR.id);
@@ -369,10 +356,9 @@ async function startServer() {
           return;
         }
 
-        // 5. SUBMIT_ANSWER
         if (type === 'SUBMIT_ANSWER') {
           if (room.phase !== 'race') return;
-          if (player.hasAnswered) return; // Disallow resubmission
+          if (player.hasAnswered) return;
 
           const answerNum = Number(payload.answer);
           if (isNaN(answerNum)) return;
@@ -385,8 +371,11 @@ async function startServer() {
           const isCorrect = answerNum === room.targetSum;
           player.isCorrect = isCorrect;
 
+          const playerList = Object.values(room.players);
+          const firstP = playerList[0];
+          const secondP = playerList[1];
+
           if (isCorrect) {
-            // First correct answer wins the round!
             if (room.timeoutHandle) clearTimeout(room.timeoutHandle);
             
             player.score += 3;
@@ -400,8 +389,8 @@ async function startServer() {
               walaaNumber: room.revealedNumbers?.walaa ?? 0,
               sum: room.targetSum ?? 0,
               winner: player.role,
-              aliScoreGained: player.role === 'ali' ? 3 : 0,
-              walaaScoreGained: player.role === 'walaa' ? 3 : 0,
+              aliScoreGained: player.role === firstP.role ? 3 : 0,
+              walaaScoreGained: player.role === secondP.role ? 3 : 0,
               timeTakenMs: player.reactionTimeMs,
               reason: room.roundWinnerReason,
             });
@@ -409,20 +398,16 @@ async function startServer() {
             broadcastRoomState(room);
             return;
           } else {
-            // Wrong answer forfeits this player's chance
-            const otherPlayer = Object.values(room.players).find(p => p.id !== player.id);
+            const otherPlayer = playerList.find(p => p.id !== player.id);
             if (otherPlayer && otherPlayer.hasAnswered && !otherPlayer.isCorrect) {
-              // Both answered wrong! Draw immediately
               endRoundWithDraw(room, 'أخطأ كلا اللاعبين في الحساب');
             } else {
-              // Other player still has time to answer
               broadcastRoomState(room);
             }
           }
           return;
         }
 
-        // 6. NEXT_ROUND
         if (type === 'NEXT_ROUND') {
           if (room.phase !== 'round_result') return;
 
@@ -432,7 +417,6 @@ async function startServer() {
             return;
           }
 
-          // Advance round
           room.currentRound += 1;
           room.phase = 'selecting';
           room.revealedNumbers = null;
@@ -455,7 +439,6 @@ async function startServer() {
           return;
         }
 
-        // 7. REMATCH / PLAY_AGAIN
         if (type === 'REMATCH') {
           room.currentRound = 1;
           room.phase = 'selecting';
@@ -491,7 +474,6 @@ async function startServer() {
         const room = rooms.get(currentRoomId);
         if (room) {
           broadcastRoomState(room);
-          // If all disconnected, schedule room cleanup
           const anyConnected = Object.values(room.players).some(p => p.ws.readyState === WebSocket.OPEN);
           if (!anyConnected) {
             setTimeout(() => {
@@ -506,7 +488,6 @@ async function startServer() {
     });
   });
 
-  // Vite middleware in dev or static files in prod
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
